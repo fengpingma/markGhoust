@@ -5,4 +5,5 @@
     <string name="openserver">openServer</string>
     <string name="save">save</string>
     <string name="openpermisson">openPermisson</string>
+    <string name="closeserver">closeServer</string>
 </resources>

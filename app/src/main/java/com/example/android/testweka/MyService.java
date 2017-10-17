@@ -7,10 +7,18 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.Environment;
 import android.os.IBinder;
 import android.util.Log;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.SortedMap;
@@ -21,8 +29,12 @@ import java.util.TreeMap;
 public class MyService extends Service {
 
     private final String TAG = "fengpingma";
-    private String currentPackName = "";
+    private String mCurrentPackName = "";
 
+    private String mCVSFileName = "testCSV.csv";
+    private String mFilePath = null;
+    private File csvFile=null;
+    private BufferedWriter csvWriter = null;
     private Context mContext;
     private Timer mTimer;
 
@@ -41,7 +53,7 @@ public class MyService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-
+        createCSV();
         mTimer = new Timer();
         TimerTask task = new TimerTask() {
             @Override
@@ -53,8 +65,43 @@ public class MyService extends Service {
         return super.onStartCommand(intent, flags, startId);
     }
 
+    private void createCSV() {
+        Object[] head = {"week", "time", "application"};
+        List<Object> headList = Arrays.asList(head);
+        csvWriter = null;
+        StringBuilder sb=new StringBuilder();
+
+        try {
+            if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
+                File sdCardDir = Environment.getExternalStorageDirectory();
+
+                Log.i(TAG, sdCardDir.getCanonicalPath());
+                csvFile = new File(sdCardDir.getCanonicalPath() +"/" +mCVSFileName);
+                Log.i(TAG, sdCardDir.getCanonicalPath());
+                if (!csvFile.exists()) {
+                    csvFile.createNewFile();
+                    csvWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(csvFile), "GB2312"), 1024);
+                    for (Object oneOfHead : head) {
+                        sb.append(oneOfHead + ",");
+                    }
+                    sb.setLength(sb.length()-1);
+                    Log.i(TAG,sb.toString());
+
+                    csvWriter.write(sb.toString());
+                    csvWriter.newLine();
+                    csvWriter.flush();
+                }else {
+                    csvWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(csvFile,true), "GB2312"), 1024);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private void getTime() {
         UsageStatsManager mUsageStatsManager = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
+        StringBuilder sb = new StringBuilder();
         long time = System.currentTimeMillis();
         List<UsageStats> usageStatsList = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -69,16 +116,30 @@ public class MyService extends Service {
                 }
                 if (!usageStatsSortedMap.isEmpty()) {
                     UsageStats usageStats = usageStatsSortedMap.get(usageStatsSortedMap.lastKey());
-                    if (!currentPackName.equals(usageStats.getPackageName())) {
-                        currentPackName = usageStats.getPackageName();
+                    if (!mCurrentPackName.equals(usageStats.getPackageName())) {
+                        mCurrentPackName = usageStats.getPackageName();
                         PackageManager pm = getPackageManager();
                         try {
-                            Log.i(TAG, pm.getApplicationLabel(pm.getApplicationInfo(currentPackName, PackageManager
+                            Log.i(TAG, pm.getApplicationLabel(pm.getApplicationInfo(mCurrentPackName, PackageManager
                                     .GET_META_DATA)).toString());
                         } catch (PackageManager.NameNotFoundException e) {
                             e.printStackTrace();
                         }
-                        Log.i(TAG, currentPackName + resultString(usageStatsSortedMap.lastKey()));
+                        Log.i(TAG, mCurrentPackName + resultString(usageStatsSortedMap.lastKey()));
+                        String timepattern = "HH:mm:ss";
+                        String weekpattern = "u";
+                        SimpleDateFormat timeformatter = new SimpleDateFormat(timepattern);
+                        SimpleDateFormat weekformatter = new SimpleDateFormat(weekpattern);
+                        sb.append(timeformatter.format(usageStatsSortedMap.lastKey()) + ",");
+                        sb.append(weekformatter.format(usageStatsSortedMap.lastKey()) + ",");
+                        sb.append(mCurrentPackName);
+                        try {
+                            csvWriter.write(sb.toString());
+                            csvWriter.newLine();
+                            csvWriter.flush();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
             }
@@ -94,6 +155,14 @@ public class MyService extends Service {
 
     @Override
     public void onDestroy() {
+        try {
+            mTimer.cancel();
+            csvWriter.flush();
+            csvWriter.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         super.onDestroy();
     }
 }

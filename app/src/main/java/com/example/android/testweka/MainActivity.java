@@ -69,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
         Button createArffButton = (Button) findViewById(R.id.creatArffButton);
         Button openPermission = (Button) findViewById(R.id.openPermission);
         Button openServer = (Button) findViewById(R.id.openServer);
+        Button closeServer = (Button) findViewById(R.id.closeServer);
 
         display = (TextView) findViewById(R.id.displayarff);
         creatArffResult = (TextView) findViewById(R.id.creatArffResult);
@@ -124,6 +125,13 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 startService(new Intent(MainActivity.this, MyService.class));
                 Toast.makeText(MainActivity.this, "服务已开启", Toast.LENGTH_SHORT).show();
+            }
+        });
+        closeServer.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stopService(new Intent(MainActivity.this, MyService.class));
+                Toast.makeText(MainActivity.this, "服务已关闭", Toast.LENGTH_SHORT).show();
             }
         });
     }
