@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">TestWeka</string>
+    <string name="house">house</string>
+    <string name="caculate">caculate</string>
+    <string name="openserver">openServer</string>
+    <string name="save">save</string>
+    <string name="openpermisson">openPermisson</string>
+</resources>
