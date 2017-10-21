@@ -43,14 +43,13 @@ import weka.core.Attribute;
 import weka.core.DenseInstance;
 import weka.core.Instance;
 import weka.core.Instances;
-import weka.core.converters.ArffSaver;
 
 
 public class MainActivity extends AppCompatActivity {
-    final String TAG = "fengping.ma.test";
-    final String HOUSE_FILE_NAME = "/house.arff";
-    final String CONTACT_FILE_NAME = "/contact-lenses.arff";
-    final String SAVE_FILE = "/save_example.arff";
+    private final String TAG = "fengping.ma.test";
+    private final String HOUSE_FILE_NAME = "/house.arff";
+    private final String CONTACT_FILE_NAME = "/contact-lenses.arff";
+
 
     TextView display;
     TextView displayresult;
@@ -59,44 +58,51 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // remove ActionBar
         if (getSupportActionBar() != null) {
             getSupportActionBar().hide();
         }
         setContentView(R.layout.activity_main);
 
+        //define button
         Button read = (Button) findViewById(R.id.readarff);
         Button caculate = (Button) findViewById(R.id.caculate);
-        Button createArffButton = (Button) findViewById(R.id.creatArffButton);
+        Button createArffButton = (Button) findViewById(R.id.createArffButton);
         Button openPermission = (Button) findViewById(R.id.openPermission);
         Button openServer = (Button) findViewById(R.id.openServer);
         Button closeServer = (Button) findViewById(R.id.closeServer);
 
+        //define Textview to dispaly some message of progress result
         display = (TextView) findViewById(R.id.displayarff);
         creatArffResult = (TextView) findViewById(R.id.creatArffResult);
         displayresult = (TextView) findViewById(R.id.displayResult);
 
+        //grant Write Permission and
         read.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 granteWritePermission();
-                display.setText(read());
+                display.setText(calculatePriceOfhouse());
             }
         });
+
 
         caculate.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 granteWritePermission();
-                displayresult.setText(caculate());
+                displayresult.setText(classifyGlasses());
             }
         });
+
         createArffButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 granteWritePermission();
                 checkUsagePermission();
 
-                creatArffResult.setText(createArff().toString());
+                creatArffResult.setText(readUsageStats().toString());
 
 
 //                PackageManager packageManager = getPackageManager();
@@ -123,14 +129,15 @@ public class MainActivity extends AppCompatActivity {
         openServer.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startService(new Intent(MainActivity.this, MyService.class));
+                granteWritePermission();
+                startService(new Intent(MainActivity.this, StoreDate.class));
                 Toast.makeText(MainActivity.this, "服务已开启", Toast.LENGTH_SHORT).show();
             }
         });
         closeServer.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                stopService(new Intent(MainActivity.this, MyService.class));
+                stopService(new Intent(MainActivity.this, StoreDate.class));
                 Toast.makeText(MainActivity.this, "服务已关闭", Toast.LENGTH_SHORT).show();
             }
         });
@@ -157,7 +164,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean checkUsagePermission() {
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT) {
             AppOpsManager appOps = (AppOpsManager) getSystemService(Context.APP_OPS_SERVICE);
-            int mode = 0;
+            int mode;
             mode = appOps.checkOpNoThrow("android:get_usage_stats", Process.myUid(), getPackageName());
             boolean granted = mode == AppOpsManager.MODE_ALLOWED;
             if (granted){
@@ -167,7 +174,8 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
-    public Boolean createArff() {
+
+    public Boolean readUsageStats() {
         UsageStatsManager usageStatsManager = (UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
         Calendar beginCal = Calendar.getInstance();
         beginCal.add(Calendar.HOUR_OF_DAY, -1);
@@ -192,9 +200,9 @@ public class MainActivity extends AppCompatActivity {
                 if (usrPackageName.contains(usagestats.getPackageName())) {
                     //sb.append(usagestats.getPackageName()+"|");
 
-                    sb.append("pName: " + usagestats.getPackageName() + "\n First: " + resultString(usagestats.getFirstTimeStamp())
-                            + "\n Last: " + resultString(usagestats.getLastTimeStamp()) + "\n Lasttimeused: " + resultString(usagestats
-                            .getLastTimeUsed())+ "分钟\n Total: " + usagestats.getTotalTimeInForeground()+"毫秒\n");
+                    sb.append("pName: " + usagestats.getPackageName() + "\n First: " + millisecondToString(usagestats.getFirstTimeStamp())
+                            + "\n Last: " + millisecondToString(usagestats.getLastTimeStamp()) + "\n Lasttimeused: " + millisecondToString(usagestats
+                            .getLastTimeUsed())+ "\n Total: " + usagestats.getTotalTimeInForeground()+"毫秒\n");
                 }
             }
 
@@ -209,7 +217,7 @@ public class MainActivity extends AppCompatActivity {
 
         return false;
     }
-    public String resultString(long time){
+    public String millisecondToString(long time){
         String pattern = "yyyy年MM月dd日 HH点mm分ss秒 SSS毫秒";
         SimpleDateFormat formatter = new SimpleDateFormat(pattern);
         return formatter.format(new Date(time));
@@ -223,7 +231,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public String caculate() {
+    public String classifyGlasses() {
         try {
             if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
                 File sdCardDir = Environment.getExternalStorageDirectory();
@@ -279,11 +287,11 @@ public class MainActivity extends AppCompatActivity {
                 test.setValue(astigmatism, "no");
                 test.setValue(tear_prod_rate, "normal");
 
-                ArffSaver saver = new ArffSaver();
-                saver.setInstances(data);
-                saver.setFile(new File(sdCardDir.getCanonicalPath() + SAVE_FILE));
-                saver.setDestination(new File(sdCardDir.getCanonicalPath() + SAVE_FILE));
-                saver.writeBatch();
+//                ArffSaver saver = new ArffSaver();
+//                saver.setInstances(data);
+//                saver.setFile(new File(sdCardDir.getCanonicalPath() + SAVE_FILE));
+//                saver.setDestination(new File(sdCardDir.getCanonicalPath() + SAVE_FILE));
+//                saver.writeBatch();
 //                Instance test = data.instance(0);
                 try {
                     Log.i(TAG, cfs.classifyInstance(test) + "");
@@ -293,8 +301,6 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-
-
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -304,7 +310,7 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
-    public String read() {
+    public String calculatePriceOfhouse() {
         try {
             if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
                 File sdCardDir = Environment.getExternalStorageDirectory();

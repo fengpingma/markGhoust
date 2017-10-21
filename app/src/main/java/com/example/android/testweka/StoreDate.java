@@ -9,34 +9,33 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Environment;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.util.Log;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.SortedMap;
+import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.TreeMap;
 
-public class MyService extends Service {
+public class StoreDate extends Service {
 
-    private final String TAG = "fengpingma";
+    private final String TAG = "fengpingma-ST";
     private String mCurrentPackName = "";
 
-    private String mCVSFileName = "testCSV.csv";
-    private String mFilePath = null;
+    private String mCVSFileName = "wekaCSV.csv";
     private File csvFile=null;
     private BufferedWriter csvWriter = null;
-    private Context mContext;
     private Timer mTimer;
+    UsageStatsManager mUsageStatsManager;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -47,27 +46,25 @@ public class MyService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-
-        mContext = this;
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        createCSV();
-        mTimer = new Timer();
-        TimerTask task = new TimerTask() {
-            @Override
-            public void run() {
-                getTime();
-            }
-        };
-        mTimer.schedule(task, 1000, 500);
+        if (createCSV()) {
+            mTimer = new Timer();
+            TimerTask task = new TimerTask() {
+                @Override
+                public void run() {
+                    getTime();
+                }
+            };
+            mTimer.schedule(task, 1000, 500);
+        }
         return super.onStartCommand(intent, flags, startId);
     }
 
-    private void createCSV() {
+    private boolean createCSV() {
         Object[] head = {"week", "time", "application"};
-        List<Object> headList = Arrays.asList(head);
         csvWriter = null;
         StringBuilder sb=new StringBuilder();
 
@@ -93,14 +90,17 @@ public class MyService extends Service {
                 }else {
                     csvWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(csvFile,true), "GB2312"), 1024);
                 }
+                startService(new Intent(StoreDate.this, CSVToARFFService.class));
+                return true;
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+        return false;
     }
 
     private void getTime() {
-        UsageStatsManager mUsageStatsManager = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
+        mUsageStatsManager = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
         StringBuilder sb = new StringBuilder();
         long time = System.currentTimeMillis();
         List<UsageStats> usageStatsList = null;
@@ -125,16 +125,17 @@ public class MyService extends Service {
                         } catch (PackageManager.NameNotFoundException e) {
                             e.printStackTrace();
                         }
-                        Log.i(TAG, mCurrentPackName + resultString(usageStatsSortedMap.lastKey()));
-                        String timepattern = "HH:mm:ss";
-                        String weekpattern = "u";
-                        SimpleDateFormat timeformatter = new SimpleDateFormat(timepattern);
-                        SimpleDateFormat weekformatter = new SimpleDateFormat(weekpattern);
-                        sb.append(timeformatter.format(usageStatsSortedMap.lastKey()) + ",");
-                        sb.append(weekformatter.format(usageStatsSortedMap.lastKey()) + ",");
+                        Log.i(TAG, mCurrentPackName + millisecondToString(usageStatsSortedMap.lastKey()));
+                        String weekPattern = "u";
+                        long current = System.currentTimeMillis();
+                        long zero = current/(1000*3600*24)*(1000*3600*24)- TimeZone.getDefault().getRawOffset();
+                        sb.append(convertTime(weekPattern,usageStatsSortedMap.lastKey()) + ",");
+                        sb.append((usageStatsSortedMap.lastKey()-zero)+",");
                         sb.append(mCurrentPackName);
                         try {
                             csvWriter.write(sb.toString());
+                            sb.delete(0, sb.length());
+                            sb.setLength(0);
                             csvWriter.newLine();
                             csvWriter.flush();
                         } catch (IOException e) {
@@ -144,10 +145,14 @@ public class MyService extends Service {
                 }
             }
         }
-
     }
 
-    public String resultString(long time) {
+    public String convertTime(String pattern, long time) {
+        SimpleDateFormat formatter = new SimpleDateFormat(pattern);
+        return formatter.format(time);
+    }
+
+    public String millisecondToString(long time) {
         String pattern = "yyyy年MM月dd日 HH点mm分ss秒 SSS毫秒";
         SimpleDateFormat formatter = new SimpleDateFormat(pattern);
         return formatter.format(new Date(time));
@@ -157,12 +162,12 @@ public class MyService extends Service {
     public void onDestroy() {
         try {
             mTimer.cancel();
+            stopService(new Intent(StoreDate.this, CSVToARFFService.class));
+            stopService(new Intent(StoreDate.this, CalculatePackage.class));
             csvWriter.flush();
-            csvWriter.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
-
         super.onDestroy();
     }
 }
